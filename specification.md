@@ -47,7 +47,7 @@ This describes one author, who may be referenced by ID from bricks.
         * `type` ("brick" or "part")
         * `id` (string) of the brick or part respectively
         * `quantity` (string) how many pieces of this implementation are needed
-* `<assembly_instruction> describes how the assembly is put together, and contains: 
+* `<assembly_instruction>` describes how the assembly is put together, and contains: 
     * `<step>` tags, each describing one step of the instructions, containing:
         * `<description>` (string)
         * `<media>` (see above, contains `<file>` elements)
