@@ -1,4 +1,4 @@
-* Basic object structure for DocuBricks
+﻿* Basic object structure for DocuBricks
     - "Bricks" are units of instruction, which are arranged in a tree.  Each brick has:
         * A title
         * An abstract (could be a defined subsection)
@@ -26,6 +26,10 @@
 In a proposed Markdown based format, I would say:
 
 * Each "brick" is one file
+  - The file probably should be named according to the title of the brick.  We need to make some decisions here.
+    TODO: decide on allowed characters in filenames, case-sensitivity, etc.
+    My suggestion is that filenames are restricted to alphanumeric, brackets and underscore - everything else is stripped out.  Should we allow other punctuation, brackets, etc.?  Should stripped characters be replaced by something or just deleted?  Having a "namify" function that automatically turns titles into page names might be helpful, but it would also be really nice to be able to reliably use [[Thing Page]] style links without having to say [Thing Page](thing_page).  Case sensitivity is [not a unique debate](https://stackoverflow.com/questions/25815954/make-github-pages-case-insensitive) but as we are also probably using the URLs as IDs, maybe some level of consistency is needed.  NB that if we are going to permit actual URLs to remote parts/assemblies, we should respect case sensitivity there.
+
 * Each part is one file
 * If there's an obvious way to map features above to Markdown, we use it - e.g. the first top-level heading would be the title, we could use a section for the description/abstract, and sections to delineate steps.
 * Linking between files should be handled with things that look like Markdown hyperlinks, because that will render nicely and make sense.  There are probably a number of places where it makes sense to add some information to those links - e.g. whether it's a requirement/dependency or just a link for information, and whether it should be propagated into the BoM or list of tools.  This could be done with subsections or something - e.g. have a subsection for tools, another for component parts.  Keep the entries as simple as possible (e.g. quantity and link) with details in the part file.
