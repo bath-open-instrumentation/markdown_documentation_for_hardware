@@ -90,7 +90,7 @@ def step_by_step_instructions(element, sectionlevel="##", to_markdown=safe_html_
         output += to_markdown(step.find("description"))
         output += "\n"
         output += media_section(step)
-    output += "\n"
+    output += "\n\n"
     return output
         
 def media_section(element, title="Media", sectionlevel="###"):
@@ -104,6 +104,40 @@ def media_section(element, title="Media", sectionlevel="###"):
                 output += "*   ![](" + f.attrib["url"] + ")\n"
     output += "\n"
     return output
+    
+def requirements_subsections(requirements, id_to_file):
+    """Render a list of <function> Elements nicely"""
+    output = ""
+    # Split requirements that are bricks out separately
+    brick_requirements = []
+    for r in requirements:
+        for imp in r.findall("implementation"):
+            if imp.attrib['type'] == "brick" and r not in brick_requirements:
+                brick_requirements.append(r)
+    non_brick_requirements = [r for r in requirements if r not in brick_requirements]
+    
+    for title, filtered_requirements in [("Assemblies", brick_requirements), ("Parts", non_brick_requirements)]:
+        if len(filtered_requirements) > 0:
+            output += "## " + title + "\n"
+            for r in filtered_requirements:
+                file.write("*   ")
+                if r.find("quantity") is not None:
+                    output += r.find("quantity").text + " of "
+                implementations = r.findall("implementation")
+                if len(implementations) == 0:
+                    output += r.find("description").text
+                elif len(implementations) == 1:
+                    output += "[" + r.find("description").text + "]"
+                    output += "(" + "./" + id_to_file[implementations[0].attrib['id']] + ")"
+                else:
+                    # if there are multiple implementations, link to them all using [[]] style links
+                    links = []
+                    for imp in implementations: 
+                        filename = id_to_file[imp.attrib['id']]
+                        links.append("[[./{}]]".format(filename))
+                    output += r.find("description").text + "(" + ", ".join(links) + ")"
+                output += "\n"
+            output += "\n"
         
 if __name__ == "__main__":
     doc = ET.parse("./openflexure microscope.docubricks.xml")
@@ -117,47 +151,95 @@ if __name__ == "__main__":
     os.mkdir(output_folder)
     os.mkdir(os.path.join(output_folder, "parts"))
     
-    # We want to convert links to point to the new files, so we do a first pass to figure out the conversion
-    brick_id_to_name = {}
+    # DocuBricks uses a lot of ID numbers, we convert these to filepaths/URLs
+    # This is the only mapping between filenames and IDs we should be using...
+    
+    id_to_file = {}
     for brick in root.iter("brick"):
-        brick_id_to_name[brick.attrib['id']] = namify(brick.find("name").text)
-        
-    part_id_to_name = {}
+        id = brick.attrib['id']
+        assert id not in id_to_file, "There is a duplicate ID in the input file ({}).".format(id)
+        id_to_file[id] = namify(brick.find("name").text)
     for e in list(root.iter("physical_part")) + list(root.iter("part")):
+        id = e.attrib['id']
+        assert id not in id_to_file, "There is a duplicate ID in the input file ({}).".format(id)
         name = e.find("name")
         if name is None:
             name = e.find("description")
-        part_id_to_name[e.attrib['id']] = namify(name.text)
+        id_to_file[id] = "parts/" + namify(name.text)
         
-    links_to_convert = {}
-    for id, name in brick_id_to_name.items():
-        links_to_convert["#brick_" + id] = name
-    for id, name in part_id_to_name.items():
-        links_to_convert["#part_" + id] = name
-    def to_markdown(element):
-        return safe_html_to_markdown(element, links_to_convert=links_to_convert)
+    links_to_convert = {"#" + ("part" if v.startswith("parts/") else "brick") + "_" + k: v
+                        for k, v in id_to_file.items()}
+        
+    def markdown_converter(links_to_convert, root="./"):
+        """This is a version of `safe_html_to_markdown` witht the link conversion baked in.
+        
+        This version of the function is suitable for top-level files in the hierarchy by
+        default, to use it deeper, simply specify `"../"*n` as `root`.
+        """
+            
+        def to_markdown(element):
+            """This is a version of `safe_html_to_markdown` with link conversion baked in.
+            
+            NB links will all start with """ + root + """.
+            """
+            return safe_html_to_markdown(element, 
+                                         links_to_convert={k:root + v 
+                                                           for k, v in links_to_convert.items()})
+        return to_markdown
        
+    to_markdown = markdown_converter(links_to_convert, root="./")
     for brick in root.iter("brick"):
         title = brick.find("name").text
-        name = brick_id_to_name[brick.attrib['id']]
-        with open(os.path.join(output_folder, name + ".md"), "w") as file:
+        fname = id_to_file[brick.attrib['id']]
+        with open(os.path.join(output_folder, fname + ".md"), "w") as file:
             file.write("# " + title + "\n")
             
-            if brick.find("abstract"):
+            if brick.find("abstract") is not None:
                 file.write("" + to_markdown(brick.find("abstract")) + "\n\n")
-            if brick.find("long_description"):
+            if brick.find("long_description") is not None:
                 file.write("" + to_markdown(brick.find("long_description")) + "\n\n")
                 
+            requirements = brick.findall("function")  # TODO this will break if there is not exactly one <implementation> per <function>
+            if len(requirements) > 0:
+                file.write("# Requirements\n")
+            requirements_subsections(requirements, id_to_file)
+                
+            file.write(media_section(brick, sectionlevel="##"))
+            
             if brick.find("assembly_instruction") is not None:
                 file.write("# Assembly Instructions\n")
                 file.write(step_by_step_instructions(brick.find("assembly_instruction"), to_markdown = to_markdown))
-                    
+            
+            if brick.find("notes") is not None:
+                file.write("# Notes\n" + to_markdown(brick.find("abstract")) + "\n\n")
+                   
+    to_markdown = markdown_converter(links_to_convert, root="../") 
     parts = list(root.iter("physical_part")) + list(root.iter("part"))
     for part in parts:
-        title = part.find("description").text
-        name = part_id_to_name[part.attrib['id']]
-        with open(os.path.join(output_folder, "parts", name + ".md"), "w") as file:
+        try:
+            title = part.find("name").text # this is missing in older DocuBricks files
+        except:
+            title = part.find("description").text
+        fname = id_to_file[part.attrib['id']]
+        with open(os.path.join(output_folder, fname + ".md"), "w") as file:
             file.write("# " + title + "\n")
+            
+            if part.find("description") is not None:
+                file.write("" + to_markdown(part.find("description")) + "\n\n")
+                
+            file.write("## Details\n")
+            metadata = {"supplier": "Supplier",
+                        "supplier_part_num": "Supplier's part number",
+                        "manufacturer_part_num": "Manufacturer's part number",
+                        "url": "URL",
+                        "material_amount": "Material used",
+                        "material_unit": "Material units",
+                        }
+            for k, title in metadata.items():
+                if part.find(k) is not None:
+                    if part.find(k).text is not None:
+                        file.write("*   **" + title + ":** " + part.find(k).text + "\n")
+            file.write("\n")
             
             file.write(media_section(part, sectionlevel="##"))
             
