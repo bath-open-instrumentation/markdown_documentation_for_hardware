@@ -120,7 +120,7 @@ def requirements_subsections(requirements, id_to_file):
         if len(filtered_requirements) > 0:
             output += "## " + title + "\n"
             for r in filtered_requirements:
-                file.write("*   ")
+                output += "*   "
                 if r.find("quantity") is not None:
                     output += r.find("quantity").text + " of "
                 implementations = r.findall("implementation")
@@ -138,6 +138,7 @@ def requirements_subsections(requirements, id_to_file):
                     output += r.find("description").text + "(" + ", ".join(links) + ")"
                 output += "\n"
             output += "\n"
+    return output
         
 if __name__ == "__main__":
     doc = ET.parse("./openflexure microscope.docubricks.xml")
@@ -199,10 +200,10 @@ if __name__ == "__main__":
             if brick.find("long_description") is not None:
                 file.write("" + to_markdown(brick.find("long_description")) + "\n\n")
                 
-            requirements = brick.findall("function")  # TODO this will break if there is not exactly one <implementation> per <function>
+            requirements = brick.findall("function")
             if len(requirements) > 0:
                 file.write("# Requirements\n")
-            requirements_subsections(requirements, id_to_file)
+            file.write(requirements_subsections(requirements, id_to_file))
                 
             file.write(media_section(brick, sectionlevel="##"))
             
