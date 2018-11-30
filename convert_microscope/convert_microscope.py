@@ -134,7 +134,7 @@ def requirements_subsections(requirements, id_to_file):
                     links = []
                     for imp in implementations: 
                         filename = id_to_file[imp.attrib['id']]
-                        links.append("[[./{}]]".format(filename))
+                        links.append("[./{}]".format(filename))
                     output += r.find("description").text + "(" + ", ".join(links) + ")"
                 output += "\n"
             output += "\n"
